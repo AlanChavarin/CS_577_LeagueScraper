@@ -162,6 +162,31 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # CORS_ALLOW_CREDENTIALS = True
 
+# CSRF Trusted Origins - Required for Django admin and forms to work over HTTPS
+# Django 4.0+ requires explicit trust of origins for CSRF protection, even for same-origin requests
+# This is necessary because:
+# 1. When behind a proxy (like Railway), Django checks the Origin header
+# 2. HTTPS origins must be explicitly trusted for security
+# 3. Even accessing your own admin panel requires this setting
+# You can set RAILWAY_PUBLIC_DOMAIN or RAILWAY_STATIC_URL environment variables, 
+# or explicitly set CSRF_TRUSTED_ORIGINS
+trusted_origins_env = os.getenv('CSRF_TRUSTED_ORIGINS')
+if trusted_origins_env:
+    CSRF_TRUSTED_ORIGINS = trusted_origins_env.split(',')
+else:
+    # Auto-detect Railway domain or use defaults
+    railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+    default_origins = ['http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+    if railway_domain:
+        # Ensure it starts with https://
+        if not railway_domain.startswith('http'):
+            railway_domain = f'https://{railway_domain}'
+        default_origins.insert(0, railway_domain)
+    else:
+        # Fallback to known production domain
+        default_origins.insert(0, 'https://cs577leaguescraper-production.up.railway.app')
+    CSRF_TRUSTED_ORIGINS = default_origins
+
 # REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
