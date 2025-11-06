@@ -12,6 +12,7 @@ python-dotenv>=1.0.0
 django-cors-headers>=4.0.0
 dj-database-url>=2.1.0
 gunicorn>=21.2.0
+whitenoise>=6.6.0
 
 # Web Scraping Libraries
 beautifulsoup4>=4.12.0
