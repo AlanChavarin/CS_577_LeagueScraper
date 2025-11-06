@@ -17,3 +17,16 @@ POSTGRES_HOST=localhost
 # Database port
 POSTGRES_PORT=5433
 
+# Database connection string (alternative to individual variables above)
+# Railway provides DATABASE_URL automatically when you add a PostgreSQL service
+# If DATABASE_URL or DATABASE_PUBLIC_URL is set, it will be used instead of the individual variables
+# Format: postgresql://user:password@host:port/database
+# Example: DATABASE_URL=postgresql://postgres:postgres@localhost:5433/postgres
+# DATABASE_URL=
+# DATABASE_PUBLIC_URL=
+
+# Django settings
+# SECRET_KEY=your-secret-key-here
+# DEBUG=False
+# ALLOWED_HOSTS=your-railway-domain.up.railway.app,localhost,127.0.0.1
+
