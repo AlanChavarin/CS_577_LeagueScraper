@@ -21,39 +21,52 @@ class ScraperViewSet(ViewSet):
     
     permission_classes = [AllowAny]  # Adjust permissions as needed
     
-    @action(detail=False, methods=['post'], url_path='champions')
+    @action(detail=False, methods=['post'], url_path='scrape-champions')
     def scrape_champions(self, request):
         """
         Trigger champion scraping.
         
-        POST /api/league/scrapers/champions/
+        POST /api/league/scrapers/scrape-champions/
         
         Body (optional):
         {
-            "source_url": "https://example.com/champions",
-            "save_to_db": true
+            "source_url": "https://example.com/champions",  # URL to scrape OR file path
+            "file_path": "champion_table.html",  # Optional: explicit path to local HTML file (relative to scraper dir)
+            "save_to_db": true  # If true, saves parsed champions to database
         }
+        
+        Note: 
+        - If you save the rendered HTML from your browser (with JavaScript executed),
+          you can pass the file path to scrape from the local file instead of the URL.
+        - The scraper will parse all rows after the header row and save them as Champion records.
+        - Champions are identified by name (unique), so existing champions will be updated.
         """
         try:
             source_url = request.data.get('source_url')
-            save_to_db = request.data.get('save_to_db', True)
-            
+            file_path = request.data.get('file_path')  # Optional: path to local HTML file
+            save_to_db = request.data.get('save_to_db', False)  # Default to False
+
             scraper = ChampionScraper()
-            data = scraper.scrape(source_url=source_url)
+            data = scraper.scrape(source_url=source_url, file_path=file_path)
             
-            if save_to_db and data:
-                created, updated = scraper.save_to_database(data, Champion)
-                return Response({
-                    'status': 'success',
-                    'message': f'Scraped {len(data)} champions',
-                    'created': created,
-                    'updated': updated,
-                    'timestamp': timezone.now().isoformat()
-                }, status=status.HTTP_200_OK)
+            # Extract champions data from the response
+            scraped_response = data[0] if data else {}
+            champions_data = scraped_response.get('champions_data', [])
+            
+            # Save to database if requested
+            created_count = 0
+            updated_count = 0
+            if save_to_db and champions_data:
+                created_count, updated_count = scraper.save_to_database(champions_data, Champion)
             
             return Response({
                 'status': 'success',
-                'message': f'Scraped {len(data)} champions',
+                'source_url': source_url,
+                'file_path': file_path,
+                'champions_parsed': len(champions_data),
+                'champions_created': created_count if save_to_db else None,
+                'champions_updated': updated_count if save_to_db else None,
+                'save_to_db': save_to_db,
                 'data': data,
                 'timestamp': timezone.now().isoformat()
             }, status=status.HTTP_200_OK)

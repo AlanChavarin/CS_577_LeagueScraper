@@ -1,13 +1,14 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    ChampionViewSet, PatchViewSet, ChampionPatchViewSet,
+    RoleViewSet, ChampionViewSet, PatchViewSet, ChampionPatchViewSet,
     TournamentViewSet, TeamViewSet, TeamTournamentViewSet,
     SeasonViewSet, WinLossRecordViewSet, GameViewSet
 )
 from .scraper_views import ScraperViewSet, scraper_health
 
 router = DefaultRouter()
+router.register(r'roles', RoleViewSet)
 router.register(r'champions', ChampionViewSet)
 router.register(r'patches', PatchViewSet)
 router.register(r'champion-patches', ChampionPatchViewSet)

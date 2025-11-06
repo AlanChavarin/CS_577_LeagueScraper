@@ -37,7 +37,7 @@ class MyScraper(BaseScraper):
             data = [{
                 'lookup': {'name': 'Jinx'},  # Fields to identify existing records
                 'defaults': {  # Fields to update/create
-                    'damage_type': 'Physical',
+                    'primary_damage_type': 'AD',
                     'primary_role': 'ADC',
                     # ...
                 }

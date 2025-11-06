@@ -1,15 +1,35 @@
 from rest_framework import serializers
 from .models import (
-    Champion, Patch, ChampionPatch, Tournament,
+    Role, Champion, Patch, ChampionPatch, Tournament,
     Team, TeamTournament, Season, WinLossRecord, Game
 )
 
 
+class RoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Role
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+
 class ChampionSerializer(serializers.ModelSerializer):
+    roles = serializers.PrimaryKeyRelatedField(
+        many=True, 
+        queryset=Role.objects.all(), 
+        required=False,
+        allow_empty=True
+    )
+    role_names = serializers.SerializerMethodField()
+    role_details = RoleSerializer(source='roles', many=True, read_only=True)
+    
     class Meta:
         model = Champion
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
+    
+    def get_role_names(self, obj):
+        """Return a list of role names for easier access"""
+        return [role.name for role in obj.roles.all()]
 
 
 class PatchSerializer(serializers.ModelSerializer):

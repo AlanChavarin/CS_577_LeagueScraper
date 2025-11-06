@@ -2,26 +2,28 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import (
-    Champion, Patch, ChampionPatch, Tournament,
+    Role, Champion, Patch, ChampionPatch, Tournament,
     Team, TeamTournament, Season, WinLossRecord, Game
 )
 from .serializers import (
-    ChampionSerializer,
-    PatchSerializer,
-    ChampionPatchSerializer,
-    TournamentSerializer,
-    TeamSerializer,
-    TeamTournamentSerializer,
-    SeasonSerializer,
-    WinLossRecordSerializer,
-    GameSerializer
+    RoleSerializer, ChampionSerializer,
+    PatchSerializer, ChampionPatchSerializer,
+    TournamentSerializer, TeamSerializer,
+    TeamTournamentSerializer, SeasonSerializer,
+    WinLossRecordSerializer, GameSerializer
 )
 
 
+class RoleViewSet(viewsets.ModelViewSet):
+    queryset = Role.objects.all()
+    serializer_class = RoleSerializer
+    search_fields = ['name']
+
+
 class ChampionViewSet(viewsets.ModelViewSet):
-    queryset = Champion.objects.all()
+    queryset = Champion.objects.prefetch_related('roles').all()
     serializer_class = ChampionSerializer
-    filterset_fields = ['primary_role', 'primary_damage_type', 'damage_type']
+    filterset_fields = ['roles', 'primary_damage_type']
     search_fields = ['name']
 
 

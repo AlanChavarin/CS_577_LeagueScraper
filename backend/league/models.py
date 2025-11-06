@@ -2,13 +2,52 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 
+class Role(models.Model):
+    """Represents a champion role (e.g., Fighter, Mage, Support, etc.)"""
+    name = models.CharField(max_length=50, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        db_table = 'roles'
+
+    def __str__(self):
+        return self.name
+
+
 class Champion(models.Model):
     """Represents a League of Legends champion"""
     name = models.CharField(max_length=100, unique=True)
-    damage_type = models.CharField(max_length=50)
     release_date = models.DateField()
-    primary_damage_type = models.CharField(max_length=50)
-    primary_role = models.CharField(max_length=50)
+    primary_damage_type = models.CharField(max_length=50, help_text="Primary damage type: AD or AP (what the champion builds)")
+    roles = models.ManyToManyField(Role, related_name='champions', blank=True, help_text="Champion roles (can have multiple)")
+    # New statistical fields
+    picks = models.PositiveIntegerField(default=0)
+    bans = models.PositiveIntegerField(default=0)
+    prioscore = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0.00, validators=[
+            MinValueValidator(0.0), MaxValueValidator(100.0)
+        ], help_text="Priority score as a percent (0-100)"
+    )
+    wins = models.PositiveIntegerField(default=0)
+    losses = models.PositiveIntegerField(default=0)
+    winrate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0.00, validators=[
+            MinValueValidator(0.0), MaxValueValidator(100.0)
+        ], help_text="Win rate as a percent (0-100)"
+    )
+    KDA = models.FloatField(default=0.0, help_text="Kill/Death/Assist ratio (float)")
+    avg_bt = models.FloatField(default=0.0, help_text="Average Baron time (float, minutes)")
+    avg_rp = models.FloatField(default=0.0, help_text="Average Rift time (float, minutes)")
+    gt = models.DurationField(null=True, blank=True, help_text="Average game time (duration)")
+    csm = models.FloatField(default=0.0, help_text="Creep score per minute")
+    dpm = models.PositiveIntegerField(default=0, help_text="Damage per minute")
+    gpm = models.PositiveIntegerField(default=0, help_text="Gold per minute")
+    csd_15 = models.IntegerField(default=0, help_text="CS difference at 15 minutes")
+    gd_15 = models.IntegerField(default=0, help_text="Gold difference at 15 minutes")
+    xpd_15 = models.IntegerField(default=0, help_text="XP difference at 15 minutes")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

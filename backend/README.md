@@ -40,7 +40,7 @@ This project uses PostgreSQL running in Docker. To start the database:
    ```env
    SECRET_KEY=your-secret-key-here
    DEBUG=True
-   POSTGRES_DB=league_scraper
+   POSTGRES_DB=postgres
    POSTGRES_USER=postgres
    POSTGRES_PASSWORD=postgres
    POSTGRES_HOST=localhost

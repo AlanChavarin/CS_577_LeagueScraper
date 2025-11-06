@@ -1,16 +1,33 @@
 from django.contrib import admin
 from .models import (
-    Champion, Patch, ChampionPatch, Tournament, 
+    Role, Champion, Patch, ChampionPatch, Tournament, 
     Team, TeamTournament, Season, WinLossRecord, Game
 )
 
 
+@admin.register(Role)
+class RoleAdmin(admin.ModelAdmin):
+    list_display = ['name', 'created_at', 'updated_at']
+    search_fields = ['name']
+
+
 @admin.register(Champion)
 class ChampionAdmin(admin.ModelAdmin):
-    list_display = ['name', 'primary_role', 'primary_damage_type', 'damage_type', 'release_date']
-    list_filter = ['primary_role', 'primary_damage_type', 'damage_type']
+    list_display = [
+        'name', 'release_date', 'get_roles', 'primary_damage_type',
+        'picks', 'bans', 'prioscore', 'wins', 'losses', 'winrate',
+        'KDA', 'avg_bt', 'avg_rp', 'gt', 'csm', 'dpm', 'gpm',
+        'csd_15', 'gd_15', 'xpd_15', 'created_at', 'updated_at'
+    ]
+    list_filter = ['roles', 'primary_damage_type']
     search_fields = ['name']
     date_hierarchy = 'release_date'
+    filter_horizontal = ['roles']
+    
+    def get_roles(self, obj):
+        """Display roles as a comma-separated string"""
+        return ", ".join([role.name for role in obj.roles.all()]) or "-"
+    get_roles.short_description = "Roles"
 
 
 @admin.register(Patch)
