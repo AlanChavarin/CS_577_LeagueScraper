@@ -20,7 +20,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-this-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+# Temporarily enable DEBUG to see errors - set to False in production
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'  # Changed default to True for debugging
 
 # ALLOWED_HOSTS - Railway provides RAILWAY_PUBLIC_DOMAIN automatically
 # For Railway deployment, you can set ALLOWED_HOSTS to ["*"] or specific domains

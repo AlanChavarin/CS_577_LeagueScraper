@@ -9,11 +9,19 @@ from rest_framework import status
 from rest_framework.viewsets import ViewSet
 from django.utils import timezone
 from .models import Champion, Patch, Game, Tournament, Season
-from .scrapers.champion_scraper import ChampionScraper
-from .scrapers.patch_scraper import PatchScraper
-from .scrapers.game_scraper import GameScraper
 
 logger = logging.getLogger(__name__)
+
+# Lazy imports to avoid import errors at startup
+try:
+    from .scrapers.champion_scraper import ChampionScraper
+    from .scrapers.patch_scraper import PatchScraper
+    from .scrapers.game_scraper import GameScraper
+except ImportError as e:
+    logger.warning(f"Failed to import scrapers: {e}")
+    ChampionScraper = None
+    PatchScraper = None
+    GameScraper = None
 
 
 class ScraperViewSet(ViewSet):
@@ -42,6 +50,12 @@ class ScraperViewSet(ViewSet):
         - Champions are identified by name (unique), so existing champions will be updated.
         """
         try:
+            if ChampionScraper is None:
+                return Response({
+                    'status': 'error',
+                    'message': 'ChampionScraper is not available'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
             source_url = request.data.get('source_url')
             file_path = request.data.get('file_path')  # Optional: path to local HTML file
             save_to_db = request.data.get('save_to_db', False)  # Default to False
@@ -92,6 +106,12 @@ class ScraperViewSet(ViewSet):
         }
         """
         try:
+            if PatchScraper is None:
+                return Response({
+                    'status': 'error',
+                    'message': 'PatchScraper is not available'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
             source_url = request.data.get('source_url')
             save_to_db = request.data.get('save_to_db', True)
             
@@ -138,6 +158,12 @@ class ScraperViewSet(ViewSet):
         }
         """
         try:
+            if GameScraper is None:
+                return Response({
+                    'status': 'error',
+                    'message': 'GameScraper is not available'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
             source_url = request.data.get('source_url')
             tournament_id = request.data.get('tournament_id')
             season_id = request.data.get('season_id')
