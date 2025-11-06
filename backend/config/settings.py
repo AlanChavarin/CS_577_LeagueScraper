@@ -23,21 +23,8 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-this-in-production'
 # Temporarily enable DEBUG to see errors - set to False in production
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'  # Changed default to True for debugging
 
-# ALLOWED_HOSTS - Railway provides RAILWAY_PUBLIC_DOMAIN automatically
-# For Railway deployment, you can set ALLOWED_HOSTS to ["*"] or specific domains
-# Railway docs recommend ["*"] for simplicity, but you can also use specific domains
-allowed_hosts_env = os.getenv('ALLOWED_HOSTS')
-if allowed_hosts_env:
-    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
-else:
-    # Default to Railway's recommendation or use RAILWAY_PUBLIC_DOMAIN if available
-    railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN')
-    if railway_domain:
-        ALLOWED_HOSTS = [railway_domain, 'localhost', '127.0.0.1']
-    else:
-        # Railway docs recommend ["*"] for simplicity in production
-        ALLOWED_HOSTS = ['*']
 
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 
@@ -165,7 +152,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings for Next.js frontend
 CORS_ALLOWED_ORIGINS = os.getenv(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000'
+    'http://localhost:3000,http://127.0.0.1:3000,https://cs577leaguescraper-production.up.railway.app',
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
