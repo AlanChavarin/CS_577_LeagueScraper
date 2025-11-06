@@ -150,12 +150,17 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS settings for Next.js frontend
-CORS_ALLOWED_ORIGINS = os.getenv(
-    'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000,https://cs577leaguescraper-production.up.railway.app',
-).split(',')
+# Allow all origins - effectively disables CORS restrictions
+CORS_ALLOW_ALL_ORIGINS = True
 
-CORS_ALLOW_CREDENTIALS = True
+# Note: When CORS_ALLOW_ALL_ORIGINS is True, CORS_ALLOW_CREDENTIALS cannot be True
+# If you need credentials, set CORS_ALLOW_ALL_ORIGINS = False and use CORS_ALLOWED_ORIGINS instead
+# CORS_ALLOWED_ORIGINS = os.getenv(
+#     'CORS_ALLOWED_ORIGINS',
+#     'http://localhost:3000,http://127.0.0.1:3000,https://cs577leaguescraper-production.up.railway.app,cs577leaguescraper-production.up.railway.app:8000',
+# ).split(',')
+
+# CORS_ALLOW_CREDENTIALS = True
 
 # REST Framework settings
 REST_FRAMEWORK = {
