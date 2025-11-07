@@ -143,17 +143,57 @@ try {
         $env:PGPASSWORD = $dbPassword
     }
 
+    # Verify champions_roles is in backup before restoring
+    Write-Host "Verifying backup file..." -ForegroundColor Cyan
+    $backupContent = Get-Content $BackupFile -Raw
+    if ($backupContent -match "champions_roles") {
+        Write-Host "  [OK] champions_roles table found in backup" -ForegroundColor Green
+    } else {
+        Write-Host "  [WARN] WARNING: champions_roles table NOT found in backup file!" -ForegroundColor Yellow
+        Write-Host "  The restore will proceed, but champions_roles may not be restored." -ForegroundColor Yellow
+    }
+    Write-Host ""
+    
     # Restore SQL dump using psql with connection URI
     Write-Host "Restoring SQL dump..." -ForegroundColor Yellow
     Write-Host "This may take a few minutes depending on database size..." -ForegroundColor Gray
     Write-Host ""
     
     # Use psql with the connection URI directly
-    Get-Content $BackupFile | & psql $DATABASE_PUBLIC_URL
+    # Using --echo-errors to show any errors that occur
+    # Redirect stderr to stdout to capture all output
+    $restoreOutput = Get-Content $BackupFile | & psql $DATABASE_PUBLIC_URL --echo-errors 2>&1 | Tee-Object -Variable restoreOutputVar
+    
+    # Check for errors in output (psql errors typically go to stderr)
+    $errors = $restoreOutputVar | Where-Object { $_ -match "ERROR|FATAL|WARNING" }
+    if ($errors) {
+        Write-Host ""
+        Write-Host "Errors/Warnings encountered during restore:" -ForegroundColor Yellow
+        $errors | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+    }
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host ""
         Write-Host "[SUCCESS] Database restored successfully!" -ForegroundColor Green
+        
+        # Verify champions_roles table exists after restore
+        Write-Host ""
+        Write-Host "Verifying restore..." -ForegroundColor Cyan
+        $verifyQuery = "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'champions_roles';"
+        $verifyResult = echo $verifyQuery | & psql $DATABASE_PUBLIC_URL -t -A 2>&1
+        if ($verifyResult -match '^\s*1\s*$') {
+            Write-Host "  [OK] champions_roles table exists in database" -ForegroundColor Green
+            
+            # Check row count
+            $countQuery = "SELECT COUNT(*) FROM champions_roles;"
+            $rowCount = echo $countQuery | & psql $DATABASE_PUBLIC_URL -t -A 2>&1
+            if ($rowCount -match '^\s*(\d+)\s*$') {
+                $count = $matches[1]
+                Write-Host "  [OK] champions_roles has $count rows" -ForegroundColor Green
+            }
+        } else {
+            Write-Host "  [ERROR] WARNING: champions_roles table NOT found in database after restore!" -ForegroundColor Red
+        }
     } else {
         throw "psql failed with exit code $LASTEXITCODE"
     }

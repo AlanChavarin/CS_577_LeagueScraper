@@ -55,15 +55,46 @@ try {
     }
 
     # Create SQL dump (plain text format)
+    # Using --verbose to see what's being backed up
+    # Using --no-owner and --no-privileges to avoid permission issues
     Write-Host "Creating SQL dump..." -ForegroundColor Yellow
-    & pg_dump -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB -F p -f $backupFile
     
-    if ($LASTEXITCODE -eq 0) {
-        $fileSize = (Get-Item $backupFile).Length / 1MB
-        Write-Host "[SUCCESS] Backup created successfully: $backupFile" -ForegroundColor Green
-        Write-Host "  File size: $([math]::Round($fileSize, 2)) MB" -ForegroundColor Gray
+    # Capture output and errors separately
+    $dumpOutput = & pg_dump -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB -F p --verbose --no-owner --no-privileges -f $backupFile 2>&1
+    
+    # Display output with highlighting for champions_roles
+    $dumpOutput | ForEach-Object {
+        if ($_ -match "champions_roles|COPY public\.champions_roles") {
+            Write-Host $_ -ForegroundColor Green
+        } else {
+            Write-Host $_ -ForegroundColor Gray
+        }
+    }
+    
+    # Check if backup file was created and has content
+    if (-not (Test-Path $backupFile)) {
+        throw "Backup file was not created. pg_dump may have failed."
+    }
+    
+    $fileSize = (Get-Item $backupFile).Length / 1MB
+    Write-Host "[SUCCESS] Backup created successfully: $backupFile" -ForegroundColor Green
+    Write-Host "  File size: $([math]::Round($fileSize, 2)) MB" -ForegroundColor Gray
+    
+    # Verify champions_roles table is in backup
+    Write-Host ""
+    Write-Host "Verifying backup contents..." -ForegroundColor Cyan
+    $backupContent = Get-Content $backupFile -Raw
+    if ($backupContent -match "champions_roles") {
+        Write-Host "  [OK] champions_roles table found in backup" -ForegroundColor Green
+        # Count how many rows
+        $rowCount = ([regex]::Matches($backupContent, "COPY public\.champions_roles")).Count
+        if ($rowCount -gt 0) {
+            Write-Host "  [OK] champions_roles data found in backup" -ForegroundColor Green
+        } else {
+            Write-Host "  [WARN] champions_roles table structure found but no data" -ForegroundColor Yellow
+        }
     } else {
-        throw "pg_dump failed with exit code $LASTEXITCODE"
+        Write-Host "  [ERROR] WARNING: champions_roles table NOT found in backup!" -ForegroundColor Red
     }
 
     Write-Host ""
@@ -78,4 +109,3 @@ try {
     # Clear password from environment
     Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
 }
-

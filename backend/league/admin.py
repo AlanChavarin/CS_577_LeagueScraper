@@ -1,14 +1,18 @@
 from django.contrib import admin
 from .models import (
     Role, Champion, Patch, ChampionPatch, Tournament, 
-    Team, TeamTournament, Season, WinLossRecord, Game
+    Team, TeamTournament, Season, WinLossRecord, Game, 
 )
-
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
     list_display = ['name', 'created_at', 'updated_at']
     search_fields = ['name']
+
+# @admin.register(ChampionRole)
+# class ChampionRoleAdmin(admin.ModelAdmin):
+#     list_display = ['champion', 'role']
+#     search_fields = ['champion__name', 'role__name']
 
 
 @admin.register(Champion)
@@ -23,11 +27,16 @@ class ChampionAdmin(admin.ModelAdmin):
     search_fields = ['name']
     date_hierarchy = 'release_date'
     filter_horizontal = ['roles']
-    
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.prefetch_related('roles')
+
+    @admin.display(description='Roles')
     def get_roles(self, obj):
         """Display roles as a comma-separated string"""
-        return ", ".join([role.name for role in obj.roles.all()]) or "-"
-    get_roles.short_description = "Roles"
+        role_names = [role.name for role in obj.roles.all()]
+        return ", ".join(role_names) if role_names else "-"
 
 
 @admin.register(Patch)

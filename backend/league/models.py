@@ -16,12 +16,31 @@ class Role(models.Model):
         return self.name
 
 
+class ChampionRole(models.Model):
+    """Explicit through model for Champion-Role many-to-many relationship"""
+    champion = models.ForeignKey('Champion', on_delete=models.CASCADE, db_column='champion_id')
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, db_column='role_id')
+
+    class Meta:
+        db_table = 'champions_roles'
+        unique_together = [['champion', 'role']]
+
+    def __str__(self):
+        return f"{self.champion.name} - {self.role.name}"
+
+
 class Champion(models.Model):
     """Represents a League of Legends champion"""
     name = models.CharField(max_length=100, unique=True)
     release_date = models.DateField()
     primary_damage_type = models.CharField(max_length=50, help_text="Primary damage type: AD or AP (what the champion builds)")
-    roles = models.ManyToManyField(Role, related_name='champions', blank=True, help_text="Champion roles (can have multiple)")
+    roles = models.ManyToManyField(
+        Role,
+        through='ChampionRole',
+        related_name='champions',
+        blank=True,
+        help_text="Champion roles (can have multiple)"
+    )
     # New statistical fields
     picks = models.PositiveIntegerField(default=0)
     bans = models.PositiveIntegerField(default=0)
