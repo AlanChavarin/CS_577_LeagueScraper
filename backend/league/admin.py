@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    Role, Champion, Patch, ChampionPatch, Tournament, 
+    Role, Champion, ChampionRole, Patch, ChampionPatch, Tournament, 
     Team, TeamTournament, Season, WinLossRecord, Game, 
 )
 
@@ -9,10 +9,11 @@ class RoleAdmin(admin.ModelAdmin):
     list_display = ['name', 'created_at', 'updated_at']
     search_fields = ['name']
 
-# @admin.register(ChampionRole)
-# class ChampionRoleAdmin(admin.ModelAdmin):
-#     list_display = ['champion', 'role']
-#     search_fields = ['champion__name', 'role__name']
+class ChampionRoleInline(admin.TabularInline):
+    """Inline admin for managing Champion-Role relationships"""
+    model = ChampionRole
+    extra = 1
+    autocomplete_fields = ['role']
 
 
 @admin.register(Champion)
@@ -26,7 +27,7 @@ class ChampionAdmin(admin.ModelAdmin):
     list_filter = ['roles', 'primary_damage_type']
     search_fields = ['name']
     date_hierarchy = 'release_date'
-    filter_horizontal = ['roles']
+    inlines = [ChampionRoleInline]
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
