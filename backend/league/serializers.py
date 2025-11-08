@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Role, Champion, Patch, ChampionPatch, Tournament,
-    Team, TeamTournament, Season, WinLossRecord, Game
+    Team, TeamTournament, Season, ChampionSeasonStats, Game
 )
 
 
@@ -82,13 +82,13 @@ class SeasonSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
 
-class WinLossRecordSerializer(serializers.ModelSerializer):
+class ChampionSeasonStatsSerializer(serializers.ModelSerializer):
     champion_name = serializers.CharField(source='champion.name', read_only=True)
     season_name = serializers.CharField(source='season.name', read_only=True)
     win_rate = serializers.FloatField(read_only=True)
 
     class Meta:
-        model = WinLossRecord
+        model = ChampionSeasonStats
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at', 'win_rate']
 

@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RoleViewSet, ChampionViewSet, PatchViewSet, ChampionPatchViewSet,
     TournamentViewSet, TeamViewSet, TeamTournamentViewSet,
-    SeasonViewSet, WinLossRecordViewSet, GameViewSet
+    SeasonViewSet, ChampionSeasonStatsViewSet, GameViewSet
 )
 from .scraper_views import ScraperViewSet, scraper_health
 
@@ -16,7 +16,7 @@ router.register(r'tournaments', TournamentViewSet)
 router.register(r'teams', TeamViewSet)
 router.register(r'team-tournaments', TeamTournamentViewSet)
 router.register(r'seasons', SeasonViewSet)
-router.register(r'win-loss-records', WinLossRecordViewSet)
+router.register(r'champion-season-stats', ChampionSeasonStatsViewSet)
 router.register(r'games', GameViewSet)
 router.register(r'scrapers', ScraperViewSet, basename='scrapers')
 

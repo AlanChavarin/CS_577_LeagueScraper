@@ -2,14 +2,21 @@
 Champion scraper for League of Legends champions.
 """
 from pathlib import Path
-from typing import List, Dict, Any
-from datetime import timedelta, date
+from typing import List, Dict, Any, Optional
+from datetime import timedelta
 from decimal import Decimal
+
+from django.db import transaction
+
+from ..models import Champion, ChampionSeasonStats, Season
 from .base import BaseScraper
 
 
 class ChampionScraper(BaseScraper):
     """Scraper for champion data."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._last_champion_stats: List[Dict[str, Any]] = []
     
     def _parse_percentage(self, value: str) -> Decimal:
         """Parse percentage string (e.g., '60%') to Decimal (e.g., 60.00)"""
@@ -85,43 +92,52 @@ class ChampionScraper(BaseScraper):
                 continue
             
             # Map columns to model fields
-            champion_data = {
-                'lookup': {'name': champion_name},
-                'defaults': {
-                    # Required fields (set defaults if not in table)
-                    'release_date': date(2009, 1, 1),  # Default date if not in table (LoL release date)
-                    'primary_damage_type': '',  # Not in table (AD or AP)
-                    
-                    # Table data fields
-                    'picks': self._parse_integer(row[1]),
-                    'bans': self._parse_integer(row[2]),
-                    'prioscore': self._parse_percentage(row[3]),
-                    'wins': self._parse_integer(row[4]),
-                    'losses': self._parse_integer(row[5]),
-                    'winrate': self._parse_percentage(row[6]),
-                    'KDA': self._parse_float(row[7]),
-                    'avg_bt': self._parse_float(row[8]),
-                    'avg_rp': self._parse_float(row[9]),
-                    'gt': self._parse_duration(row[10]),
-                    'csm': self._parse_float(row[11]),
-                    'dpm': self._parse_integer(row[12]),
-                    'gpm': self._parse_integer(row[13]),
-                    'csd_15': self._parse_integer(row[14]),
-                    'gd_15': self._parse_integer(row[15]),
-                    'xpd_15': self._parse_integer(row[16]),
-                }
+            stats = {
+                'picks': self._parse_integer(row[1]),
+                'bans': self._parse_integer(row[2]),
+                'prioscore': self._parse_percentage(row[3]),
+                'wins': self._parse_integer(row[4]),
+                'losses': self._parse_integer(row[5]),
+                'winrate': self._parse_percentage(row[6]),
+                'KDA': self._parse_float(row[7]),
+                'avg_bt': self._parse_float(row[8]),
+                'avg_rp': self._parse_float(row[9]),
+                'gt': self._parse_duration(row[10]),
+                'csm': self._parse_float(row[11]),
+                'dpm': self._parse_integer(row[12]),
+                'gpm': self._parse_integer(row[13]),
+                'csd_15': self._parse_integer(row[14]),
+                'gd_15': self._parse_integer(row[15]),
+                'xpd_15': self._parse_integer(row[16]),
             }
-            champions.append(champion_data)
+
+            champions.append({
+                'champion_name': champion_name,
+                'stats': stats,
+            })
         
         return champions
     
-    def scrape(self, source_url: str = None, file_path: str = None, **kwargs) -> List[Dict[str, Any]]:
+    def _serialize_stats(self, stats: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert stats dictionary into JSON-serializable format."""
+        serialized = {}
+        for key, value in stats.items():
+            if isinstance(value, Decimal):
+                serialized[key] = str(value)
+            elif isinstance(value, timedelta):
+                serialized[key] = str(value) if value is not None else None
+            else:
+                serialized[key] = value
+        return serialized
+
+    def scrape(self, source_url: str = None, file_path: str = None, season_name: Optional[str] = None, **kwargs) -> List[Dict[str, Any]]:
         """
         Scrape champion data from the provided URL or local HTML file.
         
         Args:
             source_url: URL to scrape champions from (or file path)
             file_path: Optional explicit file path to read HTML from (takes precedence)
+            season_name: Optional season name context for the scrape
         
         Returns:
             List containing dictionary with scraped webpage data
@@ -320,6 +336,18 @@ class ChampionScraper(BaseScraper):
             for table_rows in playersList_data:
                 champions = self._parse_table_rows_to_champions(table_rows)
                 champions_data.extend(champions)
+
+        # Persist parsed champion stats for subsequent save_to_database calls
+        self._last_champion_stats = champions_data
+
+        # Prepare JSON-serializable representation for responses
+        champions_serialized = [
+            {
+                'champion_name': entry['champion_name'],
+                'stats': self._serialize_stats(entry['stats'])
+            }
+            for entry in champions_data
+        ]
         
         # Return the scraped data
         # Note: You can't return BeautifulSoup Tag objects directly (not JSON serializable)
@@ -328,7 +356,7 @@ class ChampionScraper(BaseScraper):
             'source_type': source_type,  # 'url' or 'file'
             'playersList_html': playersList_html,  # HTML strings of the tables
             'playersList_data': playersList_data,  # Structured data extracted from tables
-            'champions_data': champions_data,  # Parsed champion data ready for database
+            'champion_stats': champions_serialized,  # Parsed champion stats ready for display
             'champions_count': len(champions_data),
             'table_count': len(playersList_tables),
             'debug_info': debug_info,  # Detailed debug info for all cells in first data row
@@ -338,6 +366,68 @@ class ChampionScraper(BaseScraper):
                 'empty_cells': empty_cell_count,
                 'total_cells': total_cell_count,
                 'note': 'If is_likely_js_rendered is true and source_type is "url", you may need to use Selenium/Playwright to wait for JavaScript to populate the table'
-            }
+            },
+            'season_name': season_name,
         }]
+
+    def save_stats_to_database(
+        self,
+        champions_data: Optional[List[Dict[str, Any]]] = None,
+        season_name: Optional[str] = None
+    ):
+        """
+        Save champion seasonal stats to the database without modifying champion records.
+
+        Args:
+            champions_data: Optional list of parsed champion stats. If omitted, uses the last scrape results.
+            season_name: Name of the season to associate the stats with.
+
+        Returns:
+            Tuple of (created_count, updated_count, missing_champions)
+        """
+        if champions_data is None:
+            champions_data = getattr(self, '_last_champion_stats', [])
+
+        season_name = season_name.strip() if season_name else season_name
+
+        if not season_name:
+            raise ValueError("season_name is required to save champion statistics.")
+
+        if not champions_data:
+            return 0, 0, []
+
+        season, _ = Season.objects.get_or_create(name=season_name)
+
+        created_count = 0
+        updated_count = 0
+        missing_champions = []
+
+        with transaction.atomic():
+            for entry in champions_data:
+                champion_name = entry.get('champion_name')
+                stats = entry.get('stats', {})
+
+                if not champion_name or not stats:
+                    continue
+
+                try:
+                    champion = Champion.objects.get(name=champion_name)
+                except Champion.DoesNotExist:
+                    missing_champions.append(champion_name)
+                    continue
+
+                stats_defaults = stats.copy()
+
+                _, created = ChampionSeasonStats.objects.update_or_create(
+                    champion=champion,
+                    season=season,
+                    defaults=stats_defaults
+                )
+
+                if created:
+                    created_count += 1
+                else:
+                    updated_count += 1
+
+        return created_count, updated_count, missing_champions
 

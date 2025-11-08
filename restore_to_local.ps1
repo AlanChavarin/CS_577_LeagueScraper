@@ -1,5 +1,5 @@
 # PostgreSQL Database Restore Script
-# Restores a local backup to production database using PROD_URL
+# Restores a backup into a local PostgreSQL instance using POSTGRES_* environment variables
 
 param(
     [string]$BackupFile = ""
@@ -24,12 +24,23 @@ if (Test-Path $envFile) {
     }
 }
 
-# Get PROD_URL from environment
-$PROD_URL = $env:PROD_URL
+# Get local connection details from environment
+$POSTGRES_DB = $env:POSTGRES_DB
+$POSTGRES_USER = $env:POSTGRES_USER
+$POSTGRES_PASSWORD = $env:POSTGRES_PASSWORD
+$POSTGRES_HOST = $env:POSTGRES_HOST
+$POSTGRES_PORT = $env:POSTGRES_PORT
 
-if (-not $PROD_URL) {
-    Write-Host "Error: PROD_URL not found in .env file or environment variables." -ForegroundColor Red
-    Write-Host "Please ensure PROD_URL is set in your .env file." -ForegroundColor Yellow
+$missingVars = @()
+if (-not $POSTGRES_DB) { $missingVars += "POSTGRES_DB" }
+if (-not $POSTGRES_USER) { $missingVars += "POSTGRES_USER" }
+if (-not $POSTGRES_PASSWORD) { $missingVars += "POSTGRES_PASSWORD" }
+if (-not $POSTGRES_HOST) { $missingVars += "POSTGRES_HOST" }
+if (-not $POSTGRES_PORT) { $missingVars += "POSTGRES_PORT" }
+
+if ($missingVars.Count -gt 0) {
+    Write-Host "Error: Missing required environment variables: $($missingVars -join ', ')" -ForegroundColor Red
+    Write-Host "Please ensure these values are set in your .env file or environment variables." -ForegroundColor Yellow
     exit 1
 }
 
@@ -91,31 +102,28 @@ if (-not (Test-Path $BackupFile)) {
     exit 1
 }
 
-# Parse PROD_URL to extract connection info for display
-# Format: postgresql://user:password@host:port/database
-$urlPattern = 'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)'
-if ($PROD_URL -match $urlPattern) {
-    $dbUser = $matches[1]
-    $dbHost = $matches[3]
-    $dbPort = $matches[4]
-    $dbName = $matches[5]
-    $dbPassword = $matches[2]
-} else {
-    Write-Host "Warning: Could not parse PROD_URL format. Proceeding anyway..." -ForegroundColor Yellow
-    $dbUser = "unknown"
-    $dbHost = "unknown"
-    $dbPort = "unknown"
-    $dbName = "unknown"
-}
+$dbUser = $POSTGRES_USER
+$dbHost = $POSTGRES_HOST
+$dbPort = $POSTGRES_PORT
+$dbName = $POSTGRES_DB
+$dbPassword = $POSTGRES_PASSWORD
+
+$psqlArgs = @(
+    "-h", $dbHost,
+    "-p", $dbPort,
+    "-U", $dbUser,
+    "-d", $dbName,
+    "--echo-errors"
+)
 
 # Safety confirmation
 Write-Host ""
 Write-Host ("=" * 60) -ForegroundColor Yellow
-Write-Host "WARNING: This will RESTORE data to PRODUCTION database!" -ForegroundColor Red
+Write-Host "WARNING: This will RESTORE data to LOCAL database!" -ForegroundColor Red
 Write-Host ("=" * 60) -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Backup file: $BackupFile" -ForegroundColor Cyan
-Write-Host "Production database:" -ForegroundColor Cyan
+Write-Host "Local database:" -ForegroundColor Cyan
 Write-Host "  Host: $dbHost" -ForegroundColor Gray
 Write-Host "  Port: $dbPort" -ForegroundColor Gray
 Write-Host "  Database: $dbName" -ForegroundColor Gray
@@ -162,7 +170,7 @@ try {
     # Use psql with the connection URI directly
     # Using --echo-errors to show any errors that occur
     # Redirect stderr to stdout to capture all output
-    $restoreOutput = Get-Content $BackupFile | & psql $PROD_URL --echo-errors 2>&1 | Tee-Object -Variable restoreOutputVar
+    $restoreOutput = Get-Content $BackupFile | & psql @psqlArgs 2>&1 | Tee-Object -Variable restoreOutputVar
     
     # Check for errors in output (psql errors typically go to stderr)
     $errors = $restoreOutputVar | Where-Object { $_ -match "ERROR|FATAL|WARNING" }
@@ -180,13 +188,13 @@ try {
         Write-Host ""
         Write-Host "Verifying restore..." -ForegroundColor Cyan
         $verifyQuery = "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'champions_roles';"
-        $verifyResult = echo $verifyQuery | & psql $PROD_URL -t -A 2>&1
+        $verifyResult = & psql @psqlArgs "-t" "-A" "-c" $verifyQuery 2>&1
         if ($verifyResult -match '^\s*1\s*$') {
             Write-Host "  [OK] champions_roles table exists in database" -ForegroundColor Green
             
             # Check row count
             $countQuery = "SELECT COUNT(*) FROM champions_roles;"
-            $rowCount = echo $countQuery | & psql $PROD_URL -t -A 2>&1
+            $rowCount = & psql @psqlArgs "-t" "-A" "-c" $countQuery 2>&1
             if ($rowCount -match '^\s*(\d+)\s*$') {
                 $count = $matches[1]
                 Write-Host "  [OK] champions_roles has $count rows" -ForegroundColor Green

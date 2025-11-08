@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Role, Champion, ChampionRole, Patch, ChampionPatch, Tournament, 
-    Team, TeamTournament, Season, WinLossRecord, Game, 
+    Team, TeamTournament, Season, ChampionSeasonStats, Game, 
 )
 
 @admin.register(Role)
@@ -20,9 +20,7 @@ class ChampionRoleInline(admin.TabularInline):
 class ChampionAdmin(admin.ModelAdmin):
     list_display = [
         'name', 'release_date', 'get_roles', 'primary_damage_type',
-        'picks', 'bans', 'prioscore', 'wins', 'losses', 'winrate',
-        'KDA', 'avg_bt', 'avg_rp', 'gt', 'csm', 'dpm', 'gpm',
-        'csd_15', 'gd_15', 'xpd_15', 'created_at', 'updated_at'
+        'created_at', 'updated_at'
     ]
     list_filter = ['roles', 'primary_damage_type']
     search_fields = ['name']
@@ -80,14 +78,16 @@ class TeamTournamentAdmin(admin.ModelAdmin):
 
 @admin.register(Season)
 class SeasonAdmin(admin.ModelAdmin):
-    list_display = ['name', 'date']
+    list_display = ['name']
     search_fields = ['name']
-    date_hierarchy = 'date'
 
 
-@admin.register(WinLossRecord)
-class WinLossRecordAdmin(admin.ModelAdmin):
-    list_display = ['champion', 'season', 'wins', 'losses', 'win_rate']
+@admin.register(ChampionSeasonStats)
+class ChampionSeasonStatsAdmin(admin.ModelAdmin):
+    list_display = [
+        'champion', 'season', 'picks', 'bans', 'wins', 'losses',
+        'winrate', 'KDA', 'csm', 'dpm', 'gpm', 'win_rate'
+    ]
     list_filter = ['season', 'champion']
     search_fields = ['champion__name', 'season__name']
     readonly_fields = ['win_rate']

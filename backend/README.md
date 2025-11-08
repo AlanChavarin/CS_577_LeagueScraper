@@ -81,7 +81,7 @@ The project includes the following database tables (models) for League of Legend
 - **Tournament**: Tournaments with tier classifications and associated patches
 - **Team**: Teams with region information
 - **Season**: Competitive seasons
-- **WinLossRecord**: Champion win/loss records per season
+- **ChampionSeasonStats**: Champion statistics per season
 - **Game**: Individual games with team matchups, champion picks (10 total), and lane-specific winners
 
 All models include timestamps (`created_at`, `updated_at`) and are registered in the Django admin.

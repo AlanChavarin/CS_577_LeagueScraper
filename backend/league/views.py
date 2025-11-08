@@ -3,14 +3,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import (
     Role, Champion, Patch, ChampionPatch, Tournament,
-    Team, TeamTournament, Season, WinLossRecord, Game
+    Team, TeamTournament, Season, ChampionSeasonStats, Game
 )
 from .serializers import (
     RoleSerializer, ChampionSerializer,
     PatchSerializer, ChampionPatchSerializer,
     TournamentSerializer, TeamSerializer,
     TeamTournamentSerializer, SeasonSerializer,
-    WinLossRecordSerializer, GameSerializer
+    ChampionSeasonStatsSerializer, GameSerializer
 )
 
 
@@ -59,9 +59,9 @@ class SeasonViewSet(viewsets.ModelViewSet):
     search_fields = ['name']
 
 
-class WinLossRecordViewSet(viewsets.ModelViewSet):
-    queryset = WinLossRecord.objects.select_related('champion', 'season').all()
-    serializer_class = WinLossRecordSerializer
+class ChampionSeasonStatsViewSet(viewsets.ModelViewSet):
+    queryset = ChampionSeasonStats.objects.select_related('champion', 'season').all()
+    serializer_class = ChampionSeasonStatsSerializer
     filterset_fields = ['champion', 'season']
 
 

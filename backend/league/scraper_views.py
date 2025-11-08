@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.viewsets import ViewSet
 from django.utils import timezone
-from .models import Champion, Patch, Game, Tournament, Season
+from .models import Patch, Game
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +40,15 @@ class ScraperViewSet(ViewSet):
         {
             "source_url": "https://example.com/champions",  # URL to scrape OR file path
             "file_path": "champion_table.html",  # Optional: explicit path to local HTML file (relative to scraper dir)
-            "save_to_db": true  # If true, saves parsed champions to database
+            "season_name": "2024 Spring",  # Required when save_to_db is true
+            "save_to_db": true  # If true, saves parsed champion stats to database
         }
         
         Note: 
         - If you save the rendered HTML from your browser (with JavaScript executed),
           you can pass the file path to scrape from the local file instead of the URL.
-        - The scraper will parse all rows after the header row and save them as Champion records.
-        - Champions are identified by name (unique), so existing champions will be updated.
+        - The scraper parses all rows after the header row and stores per-season ChampionSeasonStats.
+        - Champion records are never created or modified by this endpoint.
         """
         try:
             if ChampionScraper is None:
@@ -59,27 +60,40 @@ class ScraperViewSet(ViewSet):
             source_url = request.data.get('source_url')
             file_path = request.data.get('file_path')  # Optional: path to local HTML file
             save_to_db = request.data.get('save_to_db', False)  # Default to False
+            season_name = request.data.get('season_name')
+
+            if save_to_db and not season_name:
+                return Response({
+                    'status': 'error',
+                    'message': 'season_name is required when save_to_db is true'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             scraper = ChampionScraper()
-            data = scraper.scrape(source_url=source_url, file_path=file_path)
+            data = scraper.scrape(source_url=source_url, file_path=file_path, season_name=season_name)
             
             # Extract champions data from the response
             scraped_response = data[0] if data else {}
-            champions_data = scraped_response.get('champions_data', [])
+            champion_stats = scraped_response.get('champion_stats', [])
             
             # Save to database if requested
             created_count = 0
             updated_count = 0
-            if save_to_db and champions_data:
-                created_count, updated_count = scraper.save_to_database(champions_data, Champion)
+            missing_champions = []
+            if save_to_db:
+                created_count, updated_count, missing_champions = scraper.save_stats_to_database(
+                    season_name=season_name
+                )
             
             return Response({
                 'status': 'success',
                 'source_url': source_url,
                 'file_path': file_path,
-                'champions_parsed': len(champions_data),
-                'champions_created': created_count if save_to_db else None,
-                'champions_updated': updated_count if save_to_db else None,
+                'season_name': season_name,
+                'champions_parsed': len(champion_stats),
+                'stats_created': created_count if save_to_db else None,
+                'stats_updated': updated_count if save_to_db else None,
+                'missing_champions': missing_champions if save_to_db else [],
+                'champion_stats': champion_stats,
                 'save_to_db': save_to_db,
                 'data': data,
                 'timestamp': timezone.now().isoformat()

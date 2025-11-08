@@ -41,32 +41,6 @@ class Champion(models.Model):
         blank=True,
         help_text="Champion roles (can have multiple)"
     )
-    # New statistical fields
-    picks = models.PositiveIntegerField(default=0)
-    bans = models.PositiveIntegerField(default=0)
-    prioscore = models.DecimalField(
-        max_digits=5, decimal_places=2, default=0.00, validators=[
-            MinValueValidator(0.0), MaxValueValidator(100.0)
-        ], help_text="Priority score as a percent (0-100)"
-    )
-    wins = models.PositiveIntegerField(default=0)
-    losses = models.PositiveIntegerField(default=0)
-    winrate = models.DecimalField(
-        max_digits=5, decimal_places=2, default=0.00, validators=[
-            MinValueValidator(0.0), MaxValueValidator(100.0)
-        ], help_text="Win rate as a percent (0-100)"
-    )
-    KDA = models.FloatField(default=0.0, help_text="Kill/Death/Assist ratio (float)")
-    avg_bt = models.FloatField(default=0.0, help_text="Average Baron time (float, minutes)")
-    avg_rp = models.FloatField(default=0.0, help_text="Average Rift time (float, minutes)")
-    gt = models.DurationField(null=True, blank=True, help_text="Average game time (duration)")
-    csm = models.FloatField(default=0.0, help_text="Creep score per minute")
-    dpm = models.PositiveIntegerField(default=0, help_text="Damage per minute")
-    gpm = models.PositiveIntegerField(default=0, help_text="Gold per minute")
-    csd_15 = models.IntegerField(default=0, help_text="CS difference at 15 minutes")
-    gd_15 = models.IntegerField(default=0, help_text="Gold difference at 15 minutes")
-    xpd_15 = models.IntegerField(default=0, help_text="XP difference at 15 minutes")
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -182,34 +156,52 @@ class TeamTournament(models.Model):
 class Season(models.Model):
     """Represents a competitive season"""
     name = models.CharField(max_length=100, unique=True)
-    date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-date', 'name']
+        ordering = ['name']
         db_table = 'seasons'
-        indexes = [
-            models.Index(fields=['date']),
-        ]
 
     def __str__(self):
         return self.name
 
 
-class WinLossRecord(models.Model):
-    """Tracks win/loss records for champions in specific seasons"""
-    champion = models.ForeignKey(Champion, on_delete=models.CASCADE, related_name='win_loss_records')
-    season = models.ForeignKey(Season, on_delete=models.CASCADE, related_name='win_loss_records')
+class ChampionSeasonStats(models.Model):
+    """Tracks seasonal statistics for champions"""
+    champion = models.ForeignKey(Champion, on_delete=models.CASCADE, related_name='season_stats')
+    season = models.ForeignKey(Season, on_delete=models.CASCADE, related_name='champion_stats')
+    picks = models.PositiveIntegerField(default=0)
+    bans = models.PositiveIntegerField(default=0)
+    prioscore = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0.00, validators=[
+            MinValueValidator(0.0), MaxValueValidator(100.0)
+        ], help_text="Priority score as a percent (0-100)"
+    )
     wins = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     losses = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    winrate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0.00, validators=[
+            MinValueValidator(0.0), MaxValueValidator(100.0)
+        ], help_text="Win rate as a percent (0-100)"
+    )
+    KDA = models.FloatField(default=0.0, help_text="Kill/Death/Assist ratio (float)")
+    avg_bt = models.FloatField(default=0.0, help_text="Average Baron time (float, minutes)")
+    avg_rp = models.FloatField(default=0.0, help_text="Average Rift time (float, minutes)")
+    gt = models.DurationField(null=True, blank=True, help_text="Average game time (duration)")
+    csm = models.FloatField(default=0.0, help_text="Creep score per minute")
+    dpm = models.PositiveIntegerField(default=0, help_text="Damage per minute")
+    gpm = models.PositiveIntegerField(default=0, help_text="Gold per minute")
+    csd_15 = models.IntegerField(default=0, help_text="CS difference at 15 minutes")
+    gd_15 = models.IntegerField(default=0, help_text="Gold difference at 15 minutes")
+    xpd_15 = models.IntegerField(default=0, help_text="XP difference at 15 minutes")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['season', '-wins', 'champion']
+        ordering = ['season', 'champion']
         unique_together = [['champion', 'season']]
-        db_table = 'win_loss_records'
+        db_table = 'champion_season_stats'
         indexes = [
             models.Index(fields=['champion', 'season']),
             models.Index(fields=['season']),
@@ -223,7 +215,7 @@ class WinLossRecord(models.Model):
         return (self.wins / total) * 100
 
     def __str__(self):
-        return f"{self.champion.name} - {self.season.name}: {self.wins}W-{self.losses}L"
+        return f"{self.champion.name} - {self.season.name}"
 
 
 class Game(models.Model):
