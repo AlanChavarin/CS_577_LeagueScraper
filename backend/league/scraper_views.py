@@ -18,12 +18,14 @@ try:
     from .scrapers.patch_scraper import PatchScraper
     from .scrapers.game_scraper import GameScraper
     from .scrapers.team_scraper import TeamScraper
+    from .scrapers.tournament_scraper import TournamentScraper
 except ImportError as e:
     logger.warning(f"Failed to import scrapers: {e}")
     ChampionScraper = None
     PatchScraper = None
     GameScraper = None
     TeamScraper = None
+    TournamentScraper = None
 
 
 class ScraperViewSet(ViewSet):
@@ -308,7 +310,7 @@ class ScraperViewSet(ViewSet):
         """
         return Response({
             'status': 'active',
-            'available_scrapers': ['champions', 'patches', 'games', 'teams'],
+            'available_scrapers': ['champions', 'patches', 'games', 'teams', 'tournaments'],
             'timestamp': timezone.now().isoformat()
         })
 
@@ -361,6 +363,70 @@ class ScraperViewSet(ViewSet):
 
         except Exception as e:
             logger.error(f"Team page fetch failed: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], url_path='tournaments')
+    def scrape_tournaments(self, request):
+        """
+        Trigger tournament scraping from locally saved HTML snapshots.
+
+        POST /api/league/scrapers/tournaments/
+
+        Body (optional):
+        {
+            "seasons": ["s15", "s14"],  # Process only the specified tournament list files
+            "save_to_db": true          # Persist tournaments into the database
+        }
+        """
+        try:
+            if TournamentScraper is None:
+                return Response({
+                    'status': 'error',
+                    'message': 'TournamentScraper is not available'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+            seasons = request.data.get('seasons')
+            if seasons is not None and not isinstance(seasons, (list, tuple)):
+                return Response({
+                    'status': 'error',
+                    'message': 'seasons must be a list of season identifiers'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            save_to_db = bool(request.data.get('save_to_db', False))
+
+            scraper = TournamentScraper()
+            data = scraper.scrape(seasons=seasons)
+            payload = data[0] if data else {}
+
+            fatal_error = payload.get('fatal_error')
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR if fatal_error else status.HTTP_200_OK
+
+            response_body = {
+                'status': 'error' if fatal_error else 'success',
+                'directory': payload.get('directory'),
+                'seasons_requested': payload.get('seasons_requested'),
+                'total_tournaments': payload.get('total_tournaments', 0),
+                'tournament_sets': payload.get('tournament_sets', []),
+                'errors': payload.get('errors', []),
+                'timestamp': payload.get('timestamp') or timezone.now().isoformat(),
+                'save_to_db': save_to_db,
+            }
+
+            if not fatal_error and save_to_db:
+                created, updated = scraper.save_to_database(payload.get('tournament_sets', []))
+                response_body['created'] = created
+                response_body['updated'] = updated
+
+            if fatal_error:
+                response_body['message'] = fatal_error
+
+            return Response(response_body, status=status_code)
+
+        except Exception as e:
+            logger.error(f"Tournament scraping failed: {str(e)}")
             return Response({
                 'status': 'error',
                 'message': str(e)

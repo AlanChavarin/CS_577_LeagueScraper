@@ -55,10 +55,10 @@ class ChampionPatchAdmin(admin.ModelAdmin):
 
 @admin.register(Tournament)
 class TournamentAdmin(admin.ModelAdmin):
-    list_display = ['name', 'tier', 'date', 'patch']
-    list_filter = ['tier', 'date', 'patch']
-    search_fields = ['name']
-    date_hierarchy = 'date'
+    list_display = ['name', 'season_name', 'region', 'last_game_date', 'tier', 'patch']
+    list_filter = ['season_name', 'region', 'tier', 'last_game_date', 'patch']
+    search_fields = ['name', 'season_name', 'region']
+    date_hierarchy = 'last_game_date'
 
 
 @admin.register(Team)

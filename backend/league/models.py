@@ -93,24 +93,57 @@ class ChampionPatch(models.Model):
 
 
 class Tournament(models.Model):
-    """Represents a tournament"""
+    """Represents a tournament."""
+
     name = models.CharField(max_length=200)
-    tier = models.CharField(max_length=50)  # e.g., "S-Tier", "A-Tier"
-    date = models.DateField()
-    patch = models.ForeignKey(Patch, on_delete=models.SET_NULL, null=True, blank=True, related_name='tournaments')
+    tier = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Optional tier label (e.g., S-Tier, A-Tier)",
+    )
+    season_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Season identifier associated with the tournament (e.g., s15).",
+    )
+    region = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="Region code for the event (e.g., NA, EUW, KR).",
+    )
+    last_game_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date of the final game listed for the tournament.",
+    )
+    details_url = models.URLField(
+        max_length=500,
+        blank=True,
+        help_text="Link to the tournament details page.",
+    )
+    patch = models.ForeignKey(
+        Patch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tournaments',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-date', 'name']
+        ordering = ['-last_game_date', 'name']
         db_table = 'tournaments'
         indexes = [
-            models.Index(fields=['date']),
+            models.Index(fields=['last_game_date']),
             models.Index(fields=['tier']),
+            models.Index(fields=['region']),
+            models.Index(fields=['season_name']),
         ]
 
     def __str__(self):
-        return f"{self.name} ({self.tier})"
+        season_display = f" - {self.season_name}" if self.season_name else ''
+        return f"{self.name}{season_display}"
 
 
 class Team(models.Model):
