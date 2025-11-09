@@ -37,9 +37,15 @@ class AddFieldIfNotExists(migrations.AddField):
     """Add a field only when the column is missing."""
 
     def database_forwards(self, app_label, schema_editor, from_state, to_state):
-        model = from_state.apps.get_model(app_label, self.model_name)
+        model = to_state.apps.get_model(app_label, self.model_name)
         table = model._meta.db_table
-        column_name = self.field.column
+        if table not in schema_editor.connection.introspection.table_names():
+            # Table hasn't been created yet; fall back to default behavior.
+            super().database_forwards(app_label, schema_editor, from_state, to_state)
+            return
+
+        field = model._meta.get_field(self.name)
+        column_name = field.column
         with schema_editor.connection.cursor() as cursor:
             existing_columns = [
                 column.name for column in schema_editor.connection.introspection.get_table_description(cursor, table)
@@ -49,9 +55,13 @@ class AddFieldIfNotExists(migrations.AddField):
         super().database_forwards(app_label, schema_editor, from_state, to_state)
 
     def database_backwards(self, app_label, schema_editor, from_state, to_state):
-        model = to_state.apps.get_model(app_label, self.model_name)
+        model = from_state.apps.get_model(app_label, self.model_name)
         table = model._meta.db_table
-        column_name = self.field.column
+        if table not in schema_editor.connection.introspection.table_names():
+            return
+
+        field = model._meta.get_field(self.name)
+        column_name = field.column
         with schema_editor.connection.cursor() as cursor:
             existing_columns = [
                 column.name for column in schema_editor.connection.introspection.get_table_description(cursor, table)
@@ -67,6 +77,10 @@ class AddIndexIfNotExists(migrations.AddIndex):
     def database_forwards(self, app_label, schema_editor, from_state, to_state):
         model = to_state.apps.get_model(app_label, self.model_name)
         table = model._meta.db_table
+        if table not in schema_editor.connection.introspection.table_names():
+            super().database_forwards(app_label, schema_editor, from_state, to_state)
+            return
+
         index_name = self.index.name
         with schema_editor.connection.cursor() as cursor:
             constraints = schema_editor.connection.introspection.get_constraints(cursor, table)
@@ -77,6 +91,9 @@ class AddIndexIfNotExists(migrations.AddIndex):
     def database_backwards(self, app_label, schema_editor, from_state, to_state):
         model = from_state.apps.get_model(app_label, self.model_name)
         table = model._meta.db_table
+        if table not in schema_editor.connection.introspection.table_names():
+            return
+
         index_name = self.index.name
         with schema_editor.connection.cursor() as cursor:
             constraints = schema_editor.connection.introspection.get_constraints(cursor, table)
