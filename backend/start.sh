@@ -8,8 +8,8 @@ echo "Creating staticfiles directory..."
 mkdir -p staticfiles
 
 # Run migrations
-echo "Running database migrations..."
-python manage.py migrate --noinput
+# echo "Running database migrations..."
+# python manage.py migrate --noinput
 
 # Collect static files
 echo "Collecting static files..."
