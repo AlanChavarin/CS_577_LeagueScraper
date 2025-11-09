@@ -2,7 +2,87 @@
 
 import django.core.validators
 from django.db import migrations, models
+from django.db.utils import ProgrammingError
 import django.db.models.deletion
+
+
+class CreateModelIfNotExists(migrations.CreateModel):
+    """
+    Custom CreateModel operation that skips creation when the table already exists.
+    Useful for deployments where the schema has been pre-created (e.g., via data imports).
+    """
+
+    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        model = to_state.apps.get_model(app_label, self.name)
+        table_names = schema_editor.connection.introspection.table_names()
+        if model._meta.db_table in table_names:
+            return
+        try:
+            super().database_forwards(app_label, schema_editor, from_state, to_state)
+        except ProgrammingError as exc:
+            if 'already exists' in str(exc):
+                # Table already present; continue without raising.
+                return
+            raise
+
+    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        model = from_state.apps.get_model(app_label, self.name)
+        table_names = schema_editor.connection.introspection.table_names()
+        if model._meta.db_table not in table_names:
+            return
+        super().database_backwards(app_label, schema_editor, from_state, to_state)
+
+
+class AddFieldIfNotExists(migrations.AddField):
+    """Add a field only when the column is missing."""
+
+    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        model = from_state.apps.get_model(app_label, self.model_name)
+        table = model._meta.db_table
+        column_name = self.field.column
+        with schema_editor.connection.cursor() as cursor:
+            existing_columns = [
+                column.name for column in schema_editor.connection.introspection.get_table_description(cursor, table)
+            ]
+        if column_name in existing_columns:
+            return
+        super().database_forwards(app_label, schema_editor, from_state, to_state)
+
+    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        model = to_state.apps.get_model(app_label, self.model_name)
+        table = model._meta.db_table
+        column_name = self.field.column
+        with schema_editor.connection.cursor() as cursor:
+            existing_columns = [
+                column.name for column in schema_editor.connection.introspection.get_table_description(cursor, table)
+            ]
+        if column_name not in existing_columns:
+            return
+        super().database_backwards(app_label, schema_editor, from_state, to_state)
+
+
+class AddIndexIfNotExists(migrations.AddIndex):
+    """Add an index when it doesn't already exist."""
+
+    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        model = to_state.apps.get_model(app_label, self.model_name)
+        table = model._meta.db_table
+        index_name = self.index.name
+        with schema_editor.connection.cursor() as cursor:
+            constraints = schema_editor.connection.introspection.get_constraints(cursor, table)
+        if index_name in constraints:
+            return
+        super().database_forwards(app_label, schema_editor, from_state, to_state)
+
+    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        model = from_state.apps.get_model(app_label, self.model_name)
+        table = model._meta.db_table
+        index_name = self.index.name
+        with schema_editor.connection.cursor() as cursor:
+            constraints = schema_editor.connection.introspection.get_constraints(cursor, table)
+        if index_name not in constraints:
+            return
+        super().database_backwards(app_label, schema_editor, from_state, to_state)
 
 
 class Migration(migrations.Migration):
@@ -12,7 +92,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
+        CreateModelIfNotExists(
             name='TeamSeasonStats',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
@@ -54,25 +134,25 @@ class Migration(migrations.Migration):
                 'ordering': ['season', 'team'],
             },
         ),
-        migrations.AddField(
+        AddFieldIfNotExists(
             model_name='teamseasonstats',
             name='season',
             field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='team_stats', to='league.season'),
         ),
-        migrations.AddField(
+        AddFieldIfNotExists(
             model_name='teamseasonstats',
             name='team',
             field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='season_stats', to='league.team'),
         ),
-        migrations.AddIndex(
+        AddIndexIfNotExists(
             model_name='teamseasonstats',
             index=models.Index(fields=['team', 'season'], name='team_season_team_id_7d4944_idx'),
         ),
-        migrations.AddIndex(
+        AddIndexIfNotExists(
             model_name='teamseasonstats',
             index=models.Index(fields=['season'], name='team_season_season__01eaeb_idx'),
         ),
-        migrations.AddIndex(
+        AddIndexIfNotExists(
             model_name='teamseasonstats',
             index=models.Index(fields=['region'], name='team_season_region_b9a8a0_idx'),
         ),
