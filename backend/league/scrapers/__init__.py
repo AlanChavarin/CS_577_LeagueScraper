@@ -8,6 +8,7 @@ from .base import BaseScraper
 from .champion_scraper import ChampionScraper
 from .patch_scraper import PatchScraper
 from .game_scraper import GameScraper
+from .match_scraper import MatchScraper
 
-__all__ = ['BaseScraper', 'ChampionScraper', 'PatchScraper', 'GameScraper']
+__all__ = ['BaseScraper', 'ChampionScraper', 'PatchScraper', 'GameScraper', 'MatchScraper']
 

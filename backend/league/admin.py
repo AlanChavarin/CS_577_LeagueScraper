@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Role, Champion, ChampionRole, Patch, ChampionPatch, Tournament,
-    Team, TeamTournament, Season, ChampionSeasonStats, TeamSeasonStats, Game,
+    Team, TeamTournament, Season, ChampionSeasonStats, TeamSeasonStats, Game, Match,
 )
 
 @admin.register(Role)
@@ -109,5 +109,18 @@ class GameAdmin(admin.ModelAdmin):
     list_display = ['blue_team', 'red_team', 'winning_team', 'date', 'tournament', 'season', 'patch']
     list_filter = ['date', 'patch', 'tournament', 'season', 'blue_team', 'red_team', 'winning_team']
     search_fields = ['blue_team__name', 'red_team__name', 'tournament__name']
+    date_hierarchy = 'date'
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(Match)
+class MatchAdmin(admin.ModelAdmin):
+    list_display = [
+        'tournament', 'team_one', 'team_two', 'date', 'week', 'patch'
+    ]
+    list_filter = ['tournament', 'week', 'patch', 'date']
+    search_fields = [
+        'tournament__name', 'team_one__name', 'team_two__name', 'match_url'
+    ]
     date_hierarchy = 'date'
     readonly_fields = ['created_at', 'updated_at']

@@ -2,6 +2,7 @@
 API endpoints for triggering scraping processes.
 """
 import logging
+from typing import Any, Dict, List
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -17,6 +18,7 @@ try:
     from .scrapers.champion_scraper import ChampionScraper
     from .scrapers.patch_scraper import PatchScraper
     from .scrapers.game_scraper import GameScraper
+    from .scrapers.match_scraper import MatchScraper
     from .scrapers.team_scraper import TeamScraper
     from .scrapers.tournament_scraper import TournamentScraper
 except ImportError as e:
@@ -24,6 +26,7 @@ except ImportError as e:
     ChampionScraper = None
     PatchScraper = None
     GameScraper = None
+    MatchScraper = None
     TeamScraper = None
     TournamentScraper = None
 
@@ -310,7 +313,7 @@ class ScraperViewSet(ViewSet):
         """
         return Response({
             'status': 'active',
-            'available_scrapers': ['champions', 'patches', 'games', 'teams', 'tournaments'],
+            'available_scrapers': ['champions', 'patches', 'games', 'teams', 'tournaments', 'matches'],
             'timestamp': timezone.now().isoformat()
         })
 
@@ -363,6 +366,95 @@ class ScraperViewSet(ViewSet):
 
         except Exception as e:
             logger.error(f"Team page fetch failed: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], url_path='matches')
+    def scrape_matches(self, request):
+        """
+        Trigger match scraping for tournaments stored in the database.
+
+        POST /api/league/scrapers/matches/
+
+        Body (optional):
+        {
+            "tournament_names": ["LCS 2024 Spring"],
+            "tournament_ids": [1, 2],
+            "save_to_db": true
+        }
+        """
+        try:
+            print(
+                "scrape_matches endpoint called with body=%s",
+                request.data,
+            )
+
+            if MatchScraper is None:
+                print("MatchScraper import unavailable")
+                return Response({
+                    'status': 'error',
+                    'message': 'MatchScraper is not available'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+            tournament_names = request.data.get('tournament_names')
+            if tournament_names is not None and not isinstance(tournament_names, (list, tuple)):
+                print("Invalid tournament_names payload: %s", tournament_names)
+                return Response({
+                    'status': 'error',
+                    'message': 'tournament_names must be a list of strings'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            tournament_ids = request.data.get('tournament_ids')
+            if tournament_ids is not None and not isinstance(tournament_ids, (list, tuple)):
+                print("Invalid tournament_ids payload: %s", tournament_ids)
+                return Response({
+                    'status': 'error',
+                    'message': 'tournament_ids must be a list of integers'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            save_to_db = bool(request.data.get('save_to_db', False))
+
+            scraper = MatchScraper()
+            data = scraper.scrape(
+                tournament_names=tournament_names,
+                tournament_ids=tournament_ids,
+            )
+
+            payload = data[0] if data else {}
+
+            matches_created = None
+            matches_updated = None
+            matches_skipped: List[Dict[str, Any]] = []
+            if save_to_db:
+                match_sets = payload.get('match_sets', [])
+                matches_created, matches_updated, matches_skipped = scraper.save_matches_to_database(match_sets)
+
+            print(
+                "Match scraping endpoint returning tournaments_processed=%s total_matches=%s errors=%s",
+                payload.get('tournaments_processed'),
+                sum(group.get('count', 0) for group in payload.get('match_sets', [])),
+                len(payload.get('errors', [])),
+            )
+
+            return Response({
+                'status': 'success',
+                'timestamp': timezone.now().isoformat(),
+                'base_url': payload.get('base_url'),
+                'tournaments_processed': payload.get('tournaments_processed', 0),
+                'match_sets': payload.get('match_sets', []),
+                'errors': payload.get('errors', []),
+                'requested_tournament_names': payload.get('requested_tournament_names'),
+                'requested_tournament_ids': payload.get('requested_tournament_ids'),
+                'save_to_db': save_to_db,
+                'matches_created': matches_created,
+                'matches_updated': matches_updated,
+                'matches_skipped': matches_skipped,
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"Match scraping failed: {str(e)}")
             return Response({
                 'status': 'error',
                 'message': str(e)
