@@ -102,6 +102,26 @@ class AddIndexIfNotExists(migrations.AddIndex):
         super().database_backwards(app_label, schema_editor, from_state, to_state)
 
 
+class AlterUniqueTogetherSafe(migrations.AlterUniqueTogether):
+    """Alter unique_together while tolerating pre-existing constraints."""
+
+    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        try:
+            super().database_forwards(app_label, schema_editor, from_state, to_state)
+        except ProgrammingError as exc:
+            if 'already exists' in str(exc):
+                return
+            raise
+
+    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        try:
+            super().database_backwards(app_label, schema_editor, from_state, to_state)
+        except ProgrammingError as exc:
+            if 'does not exist' in str(exc):
+                return
+            raise
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -173,7 +193,7 @@ class Migration(migrations.Migration):
             model_name='teamseasonstats',
             index=models.Index(fields=['region'], name='team_season_region_b9a8a0_idx'),
         ),
-        migrations.AlterUniqueTogether(
+        AlterUniqueTogetherSafe(
             name='teamseasonstats',
             unique_together={('team', 'season')},
         ),
