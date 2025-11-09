@@ -17,11 +17,13 @@ try:
     from .scrapers.champion_scraper import ChampionScraper
     from .scrapers.patch_scraper import PatchScraper
     from .scrapers.game_scraper import GameScraper
+    from .scrapers.team_scraper import TeamScraper
 except ImportError as e:
     logger.warning(f"Failed to import scrapers: {e}")
     ChampionScraper = None
     PatchScraper = None
     GameScraper = None
+    TeamScraper = None
 
 
 class ScraperViewSet(ViewSet):
@@ -214,6 +216,89 @@ class ScraperViewSet(ViewSet):
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+    @action(detail=False, methods=['post'], url_path='teams')
+    def scrape_teams(self, request):
+        """
+        Trigger team scraping to extract the playerslist table.
+
+        POST /api/league/scrapers/teams/
+
+        Body:
+        {
+            "source_url": "https://example.com/team-page"
+        }
+        """
+        try:
+            if TeamScraper is None:
+                return Response({
+                    'status': 'error',
+                    'message': 'TeamScraper is not available'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+            source_url = request.data.get('source_url')
+            season_name = request.data.get('season_name')
+            save_to_db = request.data.get('save_to_db', False)
+
+            if not source_url:
+                return Response({
+                    'status': 'error',
+                    'message': 'source_url is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            if save_to_db and not season_name:
+                return Response({
+                    'status': 'error',
+                    'message': 'season_name is required when save_to_db is true'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            scraper = TeamScraper()
+            data = scraper.scrape(source_url=source_url, season_name=season_name)
+            scraped_response = data[0] if data else {}
+
+            if scraped_response.get('error'):
+                return Response({
+                    'status': 'error',
+                    'message': scraped_response['error'],
+                }, status=status.HTTP_502_BAD_GATEWAY)
+
+            table = scraped_response.get('table', {})
+            team_stats = scraped_response.get('team_stats', [])
+            stats_created = None
+            stats_updated = None
+            teams_created = []
+            skipped_rows = []
+
+            if save_to_db:
+                stats_created, stats_updated, teams_created, skipped_rows = scraper.save_stats_to_database(
+                    team_stats=team_stats,
+                    season_name=season_name,
+                )
+
+            return Response({
+                'status': 'success',
+                'source_url': scraped_response.get('source_url'),
+                'status_code': scraped_response.get('status_code'),
+                'encoding': scraped_response.get('encoding'),
+                'headers': scraped_response.get('headers'),
+                'table': table,
+                'team_stats': team_stats,
+                'row_count': len(table.get('rows', [])) if table else 0,
+                'season_name': season_name,
+                'save_to_db': save_to_db,
+                'stats_created': stats_created,
+                'stats_updated': stats_updated,
+                'teams_created': teams_created,
+                'skipped_rows': skipped_rows,
+                'timestamp': timezone.now().isoformat()
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Team scraping failed: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
     @action(detail=False, methods=['get'])
     def status(self, request):
         """
@@ -223,9 +308,63 @@ class ScraperViewSet(ViewSet):
         """
         return Response({
             'status': 'active',
-            'available_scrapers': ['champions', 'patches', 'games'],
+            'available_scrapers': ['champions', 'patches', 'games', 'teams'],
             'timestamp': timezone.now().isoformat()
         })
+
+    @action(detail=False, methods=['get'], url_path='teams/fetch-page')
+    def fetch_team_page(self, request):
+        """
+        Fetch the raw HTML content for a provided team page URL.
+
+        GET /api/league/scrapers/teams/fetch-page/?source_url=https://example.com
+        """
+        try:
+            if TeamScraper is None:
+                return Response({
+                    'status': 'error',
+                    'message': 'TeamScraper is not available'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+            source_url = request.query_params.get('source_url')
+            if not source_url:
+                return Response({
+                    'status': 'error',
+                    'message': 'source_url query parameter is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            scraper = TeamScraper()
+            data = scraper.scrape(source_url=source_url)
+            scraped_response = data[0] if data else {}
+
+            if scraped_response.get('error'):
+                return Response({
+                    'status': 'error',
+                    'message': scraped_response['error'],
+                }, status=status.HTTP_502_BAD_GATEWAY)
+
+            html_content = scraped_response.get('html', '')
+
+            return Response({
+                'status': 'success',
+                'source_url': scraped_response.get('source_url'),
+                'status_code': scraped_response.get('status_code'),
+                'encoding': scraped_response.get('encoding'),
+                'headers': scraped_response.get('headers'),
+                'html': html_content,
+                'table': scraped_response.get('table'),
+                'team_stats': scraped_response.get('team_stats'),
+                'row_count': len(scraped_response.get('table', {}).get('rows', [])) if scraped_response.get('table') else 0,
+                'content_length': len(html_content),
+                'timestamp': scraped_response.get('timestamp') or timezone.now().isoformat()
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Team page fetch failed: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])

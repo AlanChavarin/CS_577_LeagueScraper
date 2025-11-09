@@ -218,6 +218,105 @@ class ChampionSeasonStats(models.Model):
         return f"{self.champion.name} - {self.season.name}"
 
 
+class TeamSeasonStats(models.Model):
+    """Tracks seasonal statistics for teams"""
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='season_stats')
+    season = models.ForeignKey(Season, on_delete=models.CASCADE, related_name='team_stats')
+    region = models.CharField(max_length=10, blank=True, help_text="Region code snapshot (e.g., NA, EUW)")
+    games = models.PositiveIntegerField(default=0)
+    winrate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="Win rate as a percent (0-100)"
+    )
+    kill_death_ratio = models.FloatField(default=0.0, help_text="Kill/Death ratio")
+    gpm = models.PositiveIntegerField(default=0, help_text="Gold per minute")
+    gdm = models.IntegerField(default=0, help_text="Gold difference per minute")
+    game_duration = models.DurationField(null=True, blank=True, help_text="Average game duration")
+    kills_per_game = models.FloatField(default=0.0)
+    deaths_per_game = models.FloatField(default=0.0)
+    towers_killed = models.FloatField(default=0.0)
+    towers_lost = models.FloatField(default=0.0)
+    first_blood_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="First blood percentage (0-100)"
+    )
+    first_tower_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="First tower percentage (0-100)"
+    )
+    first_objective_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="First objective secured percentage (FOS%, 0-100)"
+    )
+    dragons_per_game = models.FloatField(default=0.0, help_text="Average dragons per game (DRAPG)")
+    dragon_control_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="Dragon control rate (DRA%, 0-100)"
+    )
+    void_grub_per_game = models.FloatField(default=0.0, help_text="Void grubs per game (VGPG)")
+    herald_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="Herald control percentage (HER%, 0-100)"
+    )
+    atakhan_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="ATAKHAN control percentage (0-100)"
+    )
+    dragons_at_15 = models.FloatField(default=0.0, help_text="Dragons per game by 15 minutes (DRA@15)")
+    tower_difference_15 = models.FloatField(default=0.0, help_text="Tower difference at 15 minutes (TD@15)")
+    gold_difference_15 = models.IntegerField(default=0, help_text="Gold difference at 15 minutes (GD@15)")
+    points_per_game = models.FloatField(default=0.0, help_text="Points per game (PPG)")
+    nashors_per_game = models.FloatField(default=0.0, help_text="Barons per game (NASHPG)")
+    nashor_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="Baron control percentage (NASH%, 0-100)"
+    )
+    csm = models.FloatField(default=0.0, help_text="Creep score per minute (CSM)")
+    dpm = models.PositiveIntegerField(default=0, help_text="Damage per minute (DPM)")
+    wards_per_minute = models.FloatField(default=0.0, help_text="Wards per minute (WPM)")
+    vision_wards_per_minute = models.FloatField(default=0.0, help_text="Vision wards per minute (VWPM)")
+    wards_cleared_per_minute = models.FloatField(default=0.0, help_text="Wards cleared per minute (WCPM)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['season', 'team']
+        unique_together = [['team', 'season']]
+        db_table = 'team_season_stats'
+        indexes = [
+            models.Index(fields=['team', 'season']),
+            models.Index(fields=['season']),
+            models.Index(fields=['region']),
+        ]
+
+    def __str__(self):
+        return f"{self.team.name} - {self.season.name}"
+
+
 class Game(models.Model):
     """Represents a single game/match"""
     # Patch, tournament, season and teams

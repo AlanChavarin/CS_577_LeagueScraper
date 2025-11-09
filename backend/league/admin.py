@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
-    Role, Champion, ChampionRole, Patch, ChampionPatch, Tournament, 
-    Team, TeamTournament, Season, ChampionSeasonStats, Game, 
+    Role, Champion, ChampionRole, Patch, ChampionPatch, Tournament,
+    Team, TeamTournament, Season, ChampionSeasonStats, TeamSeasonStats, Game,
 )
 
 @admin.register(Role)
@@ -91,6 +91,17 @@ class ChampionSeasonStatsAdmin(admin.ModelAdmin):
     list_filter = ['season', 'champion']
     search_fields = ['champion__name', 'season__name']
     readonly_fields = ['win_rate']
+
+
+@admin.register(TeamSeasonStats)
+class TeamSeasonStatsAdmin(admin.ModelAdmin):
+    list_display = [
+        'team', 'season', 'region', 'games', 'winrate', 'kill_death_ratio',
+        'gpm', 'gdm', 'csm', 'dpm'
+    ]
+    list_filter = ['season', 'team__region']
+    search_fields = ['team__name', 'season__name', 'region']
+    readonly_fields = ['created_at', 'updated_at']
 
 
 @admin.register(Game)
