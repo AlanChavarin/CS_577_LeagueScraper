@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ObjectDoesNotExist
 
 
 class Role(models.Model):
@@ -403,7 +404,19 @@ class Match(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.team_one} vs {self.team_two} ({self.tournament.name})"
+        try:
+            tournament_name = self.tournament.name
+        except (AttributeError, ObjectDoesNotExist):
+            tournament_name = 'Unknown Tournament'
+        try:
+            team_one_name = self.team_one.name
+        except (AttributeError, ObjectDoesNotExist):
+            team_one_name = 'Unknown Team 1'
+        try:
+            team_two_name = self.team_two.name
+        except (AttributeError, ObjectDoesNotExist):
+            team_two_name = 'Unknown Team 2'
+        return f"{team_one_name} vs {team_two_name} ({tournament_name})"
 
 
 class Game(models.Model):
@@ -557,4 +570,13 @@ class Game(models.Model):
         return [pick for pick in picks if pick is not None]
 
     def __str__(self):
-        return f"{self.blue_team.name} vs {self.red_team.name} - Game {self.game_number} ({self.date})"
+        try:
+            blue_name = self.blue_team.name
+        except (AttributeError, ObjectDoesNotExist):
+            blue_name = 'Unknown Blue'
+        try:
+            red_name = self.red_team.name
+        except (AttributeError, ObjectDoesNotExist):
+            red_name = 'Unknown Red'
+        date_display = self.date if getattr(self, 'date', None) else 'Unknown date'
+        return f"{blue_name} vs {red_name} - Game {self.game_number} ({date_display})"

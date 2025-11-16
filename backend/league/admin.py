@@ -106,11 +106,19 @@ class TeamSeasonStatsAdmin(admin.ModelAdmin):
 
 @admin.register(Game)
 class GameAdmin(admin.ModelAdmin):
-    list_display = ['blue_team', 'red_team', 'winning_team', 'date']
+    list_display = ['blue_team', 'red_team', 'winning_team', 'date', 'match', 'tournament']
     list_filter = ['date', 'blue_team', 'red_team', 'winning_team']
-    search_fields = ['blue_team__name', 'red_team__name', 'tournament__name']
+    search_fields = ['blue_team__name', 'red_team__name', 'match__tournament__name']
     date_hierarchy = 'date'
     readonly_fields = ['created_at', 'updated_at']
+    list_select_related = ('blue_team', 'red_team', 'winning_team', 'match', 'match__tournament')
+    
+    @admin.display(description='Tournament', ordering='match__tournament__name')
+    def tournament(self, obj):
+        try:
+            return obj.match.tournament
+        except Exception:
+            return None
 
 
 @admin.register(Match)
@@ -124,3 +132,4 @@ class MatchAdmin(admin.ModelAdmin):
     ]
     date_hierarchy = 'date'
     readonly_fields = ['created_at', 'updated_at']
+    list_select_related = ('tournament', 'team_one', 'team_two')
