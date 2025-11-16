@@ -175,6 +175,8 @@ class ScraperViewSet(ViewSet):
             "source_url": "https://example.com/games",
             "tournament_id": 1,
             "season_id": 1,
+            "match_ids": [1, 2, 3],
+            "limit": 10,
             "save_to_db": true
         }
         """
@@ -188,13 +190,46 @@ class ScraperViewSet(ViewSet):
             source_url = request.data.get('source_url')
             tournament_id = request.data.get('tournament_id')
             season_id = request.data.get('season_id')
+            match_ids = request.data.get('match_ids')
             save_to_db = request.data.get('save_to_db', True)
+            limit = request.data.get('limit')
+
+            print("scrape_games request payload:", request.data)
+
+            save_to_db = self._coerce_bool(save_to_db)
+            if save_to_db is None:
+                return Response({
+                    'status': 'error',
+                    'message': 'save_to_db must be a boolean.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                match_ids = list(match_ids) if match_ids is not None else None
+            except TypeError:
+                return Response({
+                    'status': 'error',
+                    'message': 'match_ids must be an array of integers'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            if limit is not None:
+                try:
+                    limit = int(limit)
+                except (TypeError, ValueError):
+                    return Response({
+                        'status': 'error',
+                        'message': 'limit must be an integer'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                if limit <= 0:
+                    limit = None
             
             scraper = GameScraper()
             data = scraper.scrape(
                 source_url=source_url,
                 tournament_id=tournament_id,
-                season_id=season_id
+                season_id=season_id,
+                match_ids=match_ids,
+                limit=limit,
+                save_to_db=save_to_db
             )
             
             if save_to_db and data:
@@ -211,6 +246,13 @@ class ScraperViewSet(ViewSet):
                 'status': 'success',
                 'message': f'Scraped {len(data)} games',
                 'data': data,
+                'requested_filters': {
+                    'source_url': source_url,
+                    'tournament_id': tournament_id,
+                    'season_id': season_id,
+                    'match_ids': match_ids,
+                    'limit': limit,
+                },
                 'timestamp': timezone.now().isoformat()
             }, status=status.HTTP_200_OK)
             
@@ -220,6 +262,28 @@ class ScraperViewSet(ViewSet):
                 'status': 'error',
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @staticmethod
+    def _coerce_bool(value):
+        """
+        Attempt to coerce incoming payload values to boolean.
+
+        Accepts true booleans, string representations ("true"/"false", case-insensitive),
+        and common numeric forms (1/0).
+        """
+        if isinstance(value, bool):
+            return value
+        if value in (None, ''):
+            return False
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {'true', '1', 'yes', 'y'}:
+                return True
+            if lowered in {'false', '0', 'no', 'n'}:
+                return False
+        return None
     
     @action(detail=False, methods=['post'], url_path='teams')
     def scrape_teams(self, request):

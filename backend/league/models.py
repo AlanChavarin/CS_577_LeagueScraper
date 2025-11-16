@@ -350,15 +350,75 @@ class TeamSeasonStats(models.Model):
         return f"{self.team.name} - {self.season.name}"
 
 
+
+
+class Match(models.Model):
+    """Lightweight representation of scraped match metadata with resolved teams."""
+
+    tournament = models.ForeignKey(
+        Tournament,
+        on_delete=models.CASCADE,
+        related_name='matches',
+        help_text="Tournament the match belongs to.",
+    )
+    match_href = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Relative href extracted from gol.gg.",
+    )
+    match_url = models.URLField(
+        max_length=500,
+        unique=True,
+        help_text="Canonical gol.gg URL for the match overview.",
+    )
+    team_one = models.ForeignKey(
+        Team,
+        on_delete=models.PROTECT,
+        related_name='matches_as_team_one',
+        help_text="Team listed in the first column (typically blue side).",
+    )
+    team_two = models.ForeignKey(
+        Team,
+        on_delete=models.PROTECT,
+        related_name='matches_as_team_two',
+        help_text="Team listed in the second column (typically red side).",
+    )
+    team_one_score = models.PositiveSmallIntegerField(null=True, blank=True)
+    team_two_score = models.PositiveSmallIntegerField(null=True, blank=True)
+    week = models.CharField(max_length=50, blank=True)
+    patch = models.CharField(max_length=20, blank=True)
+    date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date', 'tournament', 'team_one__name', 'team_two__name']
+        db_table = 'matches'
+        unique_together = [['tournament', 'match_url']]
+        indexes = [
+            models.Index(fields=['date']),
+            models.Index(fields=['tournament', 'date']),
+            models.Index(fields=['team_one']),
+            models.Index(fields=['team_two']),
+        ]
+
+    def __str__(self):
+        return f"{self.team_one} vs {self.team_two} ({self.tournament.name})"
+
+
 class Game(models.Model):
     """Represents a single game"""
     # Patch, tournament, season and teams
-    patch = models.ForeignKey(Patch, on_delete=models.SET_NULL, null=True, blank=True, related_name='games')
-    tournament = models.ForeignKey(Tournament, on_delete=models.SET_NULL, null=True, blank=True, related_name='games')
-    season = models.ForeignKey(Season, on_delete=models.SET_NULL, null=True, blank=True, related_name='games')
+    # patch = models.ForeignKey(Patch, on_delete=models.SET_NULL, null=True, blank=True, related_name='games')
+    match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name='games')
+    game_number = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Ordinal number of the game within the match (1-indexed)."
+    )
     blue_team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='blue_games')
     red_team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='red_games')
     winning_team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='won_games')
+    game_url = models.URLField(max_length=500, blank=True, help_text="Canonical gol.gg URL for the game overview.")
     
     # Lane-specific winning teams
     top_lane_winning_team = models.ForeignKey(
@@ -468,9 +528,7 @@ class Game(models.Model):
         db_table = 'games'
         indexes = [
             models.Index(fields=['date']),
-            models.Index(fields=['patch', 'date']),
-            models.Index(fields=['tournament', 'date']),
-            models.Index(fields=['season', 'date']),
+            models.Index(fields=['match', 'game_number']),
             models.Index(fields=['blue_team', 'date']),
             models.Index(fields=['red_team', 'date']),
             models.Index(fields=['winning_team']),
@@ -499,58 +557,4 @@ class Game(models.Model):
         return [pick for pick in picks if pick is not None]
 
     def __str__(self):
-        return f"{self.blue_team.name} vs {self.red_team.name} - {self.date}"
-
-
-class Match(models.Model):
-    """Lightweight representation of scraped match metadata with resolved teams."""
-
-    tournament = models.ForeignKey(
-        Tournament,
-        on_delete=models.CASCADE,
-        related_name='matches',
-        help_text="Tournament the match belongs to.",
-    )
-    match_href = models.CharField(
-        max_length=500,
-        blank=True,
-        help_text="Relative href extracted from gol.gg.",
-    )
-    match_url = models.URLField(
-        max_length=500,
-        unique=True,
-        help_text="Canonical gol.gg URL for the match overview.",
-    )
-    team_one = models.ForeignKey(
-        Team,
-        on_delete=models.PROTECT,
-        related_name='matches_as_team_one',
-        help_text="Team listed in the first column (typically blue side).",
-    )
-    team_two = models.ForeignKey(
-        Team,
-        on_delete=models.PROTECT,
-        related_name='matches_as_team_two',
-        help_text="Team listed in the second column (typically red side).",
-    )
-    team_one_score = models.PositiveSmallIntegerField(null=True, blank=True)
-    team_two_score = models.PositiveSmallIntegerField(null=True, blank=True)
-    week = models.CharField(max_length=50, blank=True)
-    patch = models.CharField(max_length=20, blank=True)
-    date = models.DateField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['-date', 'tournament', 'team_one__name', 'team_two__name']
-        db_table = 'matches'
-        unique_together = [['tournament', 'match_url']]
-        indexes = [
-            models.Index(fields=['date']),
-            models.Index(fields=['tournament', 'date']),
-            models.Index(fields=['team_one']),
-            models.Index(fields=['team_two']),
-        ]
-
-    def __str__(self):
-        return f"{self.team_one} vs {self.team_two} ({self.tournament.name})"
+        return f"{self.blue_team.name} vs {self.red_team.name} - Game {self.game_number} ({self.date})"

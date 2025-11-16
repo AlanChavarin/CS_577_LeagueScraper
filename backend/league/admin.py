@@ -106,8 +106,8 @@ class TeamSeasonStatsAdmin(admin.ModelAdmin):
 
 @admin.register(Game)
 class GameAdmin(admin.ModelAdmin):
-    list_display = ['blue_team', 'red_team', 'winning_team', 'date', 'tournament', 'season', 'patch']
-    list_filter = ['date', 'patch', 'tournament', 'season', 'blue_team', 'red_team', 'winning_team']
+    list_display = ['blue_team', 'red_team', 'winning_team', 'date']
+    list_filter = ['date', 'blue_team', 'red_team', 'winning_team']
     search_fields = ['blue_team__name', 'red_team__name', 'tournament__name']
     date_hierarchy = 'date'
     readonly_fields = ['created_at', 'updated_at']
