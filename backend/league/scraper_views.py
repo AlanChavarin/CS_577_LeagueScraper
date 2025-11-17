@@ -122,9 +122,15 @@ class ScraperViewSet(ViewSet):
         
         Body (optional):
         {
-            "source_url": "https://example.com/patches",
-            "save_to_db": true
+            "source_url": "https://example.com/patches",  # URL to scrape OR file path
+            "file_path": "rawhtml/patchPage/patchPage.html",  # Optional: explicit path to local HTML file (relative to scraper dir)
+            "save_to_db": true  # If true, saves patches to database
         }
+        
+        Note: 
+        - If you save the rendered HTML from your browser (with JavaScript executed),
+          you can pass the file path to scrape from the local file instead of the URL.
+        - The scraper extracts patch version numbers and dates from the patch cards.
         """
         try:
             if PatchScraper is None:
@@ -134,16 +140,34 @@ class ScraperViewSet(ViewSet):
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
             source_url = request.data.get('source_url')
+            file_path = request.data.get('file_path')  # Optional: path to local HTML file
             save_to_db = request.data.get('save_to_db', True)
             
             scraper = PatchScraper()
-            data = scraper.scrape(source_url=source_url)
+            data = scraper.scrape(source_url=source_url, file_path=file_path)
             
-            if save_to_db and data:
-                created, updated = scraper.save_to_database(data, Patch)
+            # Check for errors in the response
+            if data and isinstance(data, list) and len(data) > 0:
+                first_item = data[0]
+                if isinstance(first_item, dict) and 'error' in first_item:
+                    return Response({
+                        'status': 'error',
+                        'message': first_item.get('error', 'Unknown error occurred'),
+                        'source_url': source_url,
+                        'file_path': file_path,
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Filter out any error dicts and only keep valid patch data
+            valid_patches = [item for item in data if isinstance(item, dict) and 'lookup' in item and 'defaults' in item]
+            
+            if save_to_db and valid_patches:
+                created, updated = scraper.save_to_database(valid_patches, Patch)
                 return Response({
                     'status': 'success',
-                    'message': f'Scraped {len(data)} patches',
+                    'message': f'Scraped {len(valid_patches)} patches',
+                    'source_url': source_url,
+                    'file_path': file_path,
+                    'patches_parsed': len(valid_patches),
                     'created': created,
                     'updated': updated,
                     'timestamp': timezone.now().isoformat()
@@ -151,13 +175,91 @@ class ScraperViewSet(ViewSet):
             
             return Response({
                 'status': 'success',
-                'message': f'Scraped {len(data)} patches',
-                'data': data,
+                'message': f'Scraped {len(valid_patches)} patches',
+                'source_url': source_url,
+                'file_path': file_path,
+                'patches_parsed': len(valid_patches),
+                'data': valid_patches,
+                'save_to_db': save_to_db,
                 'timestamp': timezone.now().isoformat()
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
             logger.error(f"Patch scraping failed: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'], url_path='patches/from-text-file')
+    def scrape_patches_from_text_file(self, request):
+        """
+        Trigger patch scraping from patchTXT.txt file.
+        
+        POST /api/league/scrapers/patches/from-text-file/
+        
+        Body (optional):
+        {
+            "file_path": "rawhtml/patchPage/patchTXT.txt",  # Optional: explicit path to patchTXT.txt (relative to scraper dir)
+            "save_to_db": true  # If true, saves patches to database
+        }
+        
+        Note: 
+        - If file_path is not provided, defaults to rawhtml/patchPage/patchTXT.txt
+        - The scraper reads patch version numbers and dates from the text file format:
+          "Month Day, Year - V[version]"
+        - This endpoint is specifically for importing historical patch data from the collected text file.
+        """
+        try:
+            if PatchScraper is None:
+                return Response({
+                    'status': 'error',
+                    'message': 'PatchScraper is not available'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
+            file_path = request.data.get('file_path')  # Optional: path to patchTXT.txt file
+            save_to_db = request.data.get('save_to_db', True)
+            
+            scraper = PatchScraper()
+            data = scraper.scrape_from_text_file(file_path=file_path)
+            
+            # Check for errors in the response
+            if data and isinstance(data, list) and len(data) > 0:
+                first_item = data[0]
+                if isinstance(first_item, dict) and 'error' in first_item:
+                    return Response({
+                        'status': 'error',
+                        'message': first_item.get('error', 'Unknown error occurred'),
+                        'file_path': file_path,
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Filter out any error dicts and only keep valid patch data
+            valid_patches = [item for item in data if isinstance(item, dict) and 'lookup' in item and 'defaults' in item]
+            
+            if save_to_db and valid_patches:
+                created, updated = scraper.save_to_database(valid_patches, Patch)
+                return Response({
+                    'status': 'success',
+                    'message': f'Scraped {len(valid_patches)} patches from text file',
+                    'file_path': file_path or 'rawhtml/patchPage/patchTXT.txt (default)',
+                    'patches_parsed': len(valid_patches),
+                    'created': created,
+                    'updated': updated,
+                    'timestamp': timezone.now().isoformat()
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                'status': 'success',
+                'message': f'Scraped {len(valid_patches)} patches from text file',
+                'file_path': file_path or 'rawhtml/patchPage/patchTXT.txt (default)',
+                'patches_parsed': len(valid_patches),
+                'data': valid_patches,
+                'save_to_db': save_to_db,
+                'timestamp': timezone.now().isoformat()
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Patch scraping from text file failed: {str(e)}")
             return Response({
                 'status': 'error',
                 'message': str(e)
@@ -583,6 +685,36 @@ class ScraperViewSet(ViewSet):
 
         except Exception as e:
             logger.error(f"Tournament scraping failed: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], url_path='attach-patches-to-tournaments')
+    def attach_patches_to_tournaments(self, request):
+        """
+        Automatically attach the correct patch to tournaments based on their dates.
+        
+        POST /api/league/scrapers/attach-patches-to-tournaments/
+        
+        For each tournament with a last_game_date, finds the latest patch where
+        patch.date <= tournament.last_game_date and assigns it to the tournament.
+        Changes are saved to the database.
+        """
+        try:
+            from .scrapers.auto_attach_patches_to_tournaments import attach_patches_to_tournaments
+            
+            logger.info("attach_patches_to_tournaments called - saving to database")
+            stats = attach_patches_to_tournaments()
+            
+            return Response({
+                'status': 'success',
+                'stats': stats,
+                'timestamp': timezone.now().isoformat()
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Patch attachment failed: {str(e)}")
             return Response({
                 'status': 'error',
                 'message': str(e)
